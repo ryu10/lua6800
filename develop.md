@@ -1,92 +1,132 @@
-# Development Log (as of 2026-05-01)
+# 開発ログ（2026-05-01 時点）
 
-## Goal
-- Run the Lua 6800 emulator reliably with correct ACIA-style interactive I/O.
-- Keep CPU/device emulation correctness separate from host terminal behavior.
+## 開発方針
 
-## Implemented Changes
+### 目標
+- ACIA のノンブロッキング入出力を実装する。
+- 6800 CPU エミュレーションを正しく実装する。
+- メモリ、ACIA アドレス、リセットベクタを適切に設定し、起動可能な形態に整える。
 
-### 1) ROM/Image Work
-- Extracted MIKBUG image into standalone header and built 64KB padded image.
-- Built binary image `mikbug/mikbug.bin` (65536 bytes).
-- Added C utility to build binary from header.
+### ACIA 対話入出力の設計原則
+- 入出力は PTY 経由接続を前提とし、対話挙動を安定化させる。
+- ラッパー型の起動スクリプトで接続確立と終了時復元を保証する。
 
-### 2) Runtime Entrypoint
-- `main.lua` now runs monitor from `mikbug/mikbug.bin`.
-- ACIA memory mapping uses:
+### テスト方針
+- 仕様を先に固定し、実装とテストの判定基準を一致させる。
+- 手動確認への依存を下げ、回帰テストを増やす。
+- 命令テストと I/O 統合テストを分離し、原因切り分けを容易にする。
+
+## 実装済みの変更
+
+### 1) 起動構成の整備
+- 起動に必要なメモリ配置とロード手順を整理。
+- 64KB 空間を前提に、起動時に必要な領域が初期化される構成へ調整。
+- リセットベクタを含む起動条件をコード上で明示できる形へ整理。
+
+### 2) 実行エントリポイント
+- `main.lua` をラッパーシェルスクリプトで起動する（開発中）。
+- ACIA のメモリマップを次の値に統一。
   - status/control: `0x8018`
   - data: `0x8019`
-- TX path writes single bytes to stdout.
-- RX path reads single bytes through a host I/O adapter.
+- TX 経路は 1 バイトずつ標準出力へ書き込む。
+- RX 経路はホスト入出力アダプタ経由で 1 バイトずつ読み取る。
 
-### 3) I/O Boundary Refactor
-- Introduced `moon6800/io_stdio.lua`:
-  - Nonblocking stdin byte reads via LuaJIT FFI (`fcntl` + `read`).
-  - Byte-oriented stdout writes.
-  - Optional TX/RX trace outputs:
+### 3) 入出力境界のリファクタリング
+- `moon6800/io_stdio.lua` を導入。
+  - LuaJIT FFI（`fcntl` + `read`）で stdin を非ブロッキング 1 バイト読み取りする。
+  - 標準出力へバイト単位で書き込む。
+  - 任意で TX/RX トレースを出力できる。
     - `ACIA_TX_TRACE_FILE`
     - `ACIA_RX_TRACE_FILE`
-- `main.lua` switched to adapter usage (reduced direct terminal-specific logic in core loop).
+- `main.lua` はアダプタ経由へ切り替え。
+- コアループ内の端末依存ロジックを削減。
 
-### 4) Wrapper Script
-- Added launcher script for emulator startup.
-- Script manages terminal mode and restore-on-exit behavior.
-- Current status: wrapper still not stable for all interactive cases (see Open Issues).
+### 4) ラッパースクリプト
+- エミュレータ起動用ランチャースクリプトを追加。
+- 端末モード制御と終了時復元をスクリプト側で管理する構成に変更。
+- 現状は全対話ケースでの安定性が未達。
 
-### 5) CPU Emulation Fixes Applied
-- `moon6800/instructions.lua`
-  - Fixed `ext16` addressing mode bug:
-    - Was incorrectly dereferencing operand bytes as addresses.
-    - Now correctly builds a 16-bit effective address and accesses `[addr]` / `[addr+1]`.
-  - Fixed `asr` implementation:
-    - Preserves sign bit from source operand.
-    - Uses source bit0 for carry.
-    - Avoids repeated side-effecting reads.
-  - Fixed branch/bit logic during investigation:
-    - `bgt` condition corrected to `(!Z) && (N == V)`.
-    - `bhi` condition corrected to `(!C) && (!Z)`.
-    - `bit` N flag corrected to reflect bit7.
+### 5) CPU エミュレーション修正
+- 対象: `moon6800/instructions.lua`
+- `ext16` アドレッシング不具合を修正。
+  - オペランドのバイト値を誤ってアドレスとして再参照していた。
+  - 16 ビット有効アドレスを正しく構築し、`[addr]` / `[addr+1]` へアクセスする実装に変更。
+- `asr` 実装を修正。
+  - 元オペランドの符号ビットを保持する。
+  - キャリーフラグに元オペランド bit0 を使う。
+  - 副作用を持つ読み出しの重複を避ける。
+- 調査中に分岐/bit 判定ロジックも修正。
+  - `bgt`: `(!Z) && (N == V)`
+  - `bhi`: `(!C) && (!Z)`
+  - `bit`: N フラグは bit7 を反映
 
-## What Was Verified
-- `mikbug/mikbug.bin` vector bytes are correct:
-  - `FFFE = E0`, `FFFF = D0`.
-- After `ext16` fix, monitor memory display at `MFFFE` can show correct vector bytes.
-- Syntax checks pass (`luajit -bl main.lua`).
+## 現在の状況
 
-## Open Issues (Current Blockers)
-- Interactive input still shows occasional stale/garbage character effects.
-- User reports inability to consistently enter a clean M command sequence.
-- Launcher-assisted mode was considered unreliable during interactive tests.
+### 検証済み項目
+- 起動に必要なメモリ・アドレス設定を段階的に確認済み。
+- `ext16` 修正後、16 ビット有効アドレス参照が意図どおり動作することを確認。
+- 構文チェックを通過（`luajit -bl main.lua`）。
 
-## Current User Decision
-- Investigation paused due to unstable interactive behavior.
-- Working assumption at pause time:
-  - Wrapper path is not yet behaving as intended for real keyboard interaction.
+### 未解決課題（現在のブロッカー）
+- 対話入力で、古い文字やゴミ文字が混入する現象が残る。
+- 対話入力シーケンスが安定しないケースがある。
+- ランチャー併用モードは対話試験で信頼性が低い。
 
-## Suggested Restart Plan
-1. Start from minimum path:
-- Temporarily bypass wrapper terminal mutations.
-- Use direct launch with a minimal, known-good input strategy.
+### 現時点の判断
+- 対話挙動が不安定なため、調査はいったん停止。
+- 暫定前提は次のとおり。
+  - ラッパー経由の経路は実キーボード入力で意図どおりに動いていない。
 
-2. Reintroduce layers one by one:
-- Re-enable wrapper terminal mode changes incrementally.
-- Validate after each single change.
+## Todo と今後の手順
 
-3. Keep diagnostic traces on while stabilizing:
-- Enable `ACIA_TX_TRACE_FILE` and `ACIA_RX_TRACE_FILE`.
-- Confirm byte-for-byte RX/TX sequence during each reproduction.
+### フェーズ 1: PTY 経由接続の信頼化（最優先）
+1. `pty-test` の実装を基準系として固定する。
+- 期待するインターフェイス仕様を文書化する。
+- 改行変換、エコー、RDRF 相当挙動、EOF の扱いを明示する。
 
-4. Lock a reproducible manual test protocol:
-- Character-by-character interactive sequence (no bulk line injection).
-- Record expected monitor response after each key.
+2. `pty-test` 側で自動結合テストを作る。
+- 代表シナリオの入出力をゴールデンログ化する。
+- 手動試験と自動試験の判定基準をそろえる。
 
-## Files Touched In This Iteration
+3. 本体へ段階的に戻す。
+- 最小構成で直接起動して安定性を確認する。
+- その後、ラッパー端末モード変更を 1 つずつ再導入する。
+- 変更ごとに RX/TX トレースで差分確認する。
+
+### フェーズ 2: moon6800 の 6800 命令完全テスト
+1. 命令テスト方針を固定する。
+- 命令ごとに通常系、境界値、フラグ遷移を定義する。
+- アドレッシングモード別の最小ケースを用意する。
+
+2. テストコードを実装する。
+- まず既知不具合修正点（`ext16`、分岐条件、`bit`、`asr`）を回帰テスト化する。
+- 次に未カバー命令へ網羅範囲を拡張する。
+
+3. 実行導線を一本化する。
+- 命令ユニットテストと I/O 統合テストの実行手順を明文化する。
+- 新規修正時に最低限回すテストセットを定義する。
+
+### フェーズ 3: 起動条件の確立
+1. 起動に必要な設定項目を固定する。
+- メモリ初期化方針、ACIA アドレス、リセットベクタ設定を仕様化する。
+
+2. 起動確認のチェックリストを作る。
+- 電源投入相当の初期状態から、期待される起動シーケンスを確認可能にする。
+
+3. 回帰確認に組み込む。
+- 命令修正や I/O 修正後でも起動可否を定常的に検証する。
+
+### 横断タスク
+- macOS/Linux 差分を同一シナリオで再検証し、差分を記録する。
+- サブモジュール運用ルール（fork/upstream 取り込み、参照更新タイミング）を文書化する。
+
+## この反復で更新したファイル
 - `main.lua`
 - `run-m6800.sh`
 - `moon6800/io_stdio.lua`
 - `moon6800/instructions.lua`
-- `develop.md` (this file)
+- `develop.md`（本ファイル）
 
-## Notes
-- Several shell sessions exited with code 143 due to manual termination while testing interactive loops.
-- This is expected during iterative monitor interaction tests.
+## メモ
+- 対話ループ試験中の手動終了により、終了コード 143 が複数回発生。
+- これは反復的な対話テストで想定内の挙動。
