@@ -13,7 +13,6 @@ ffi.cdef[[
 
 local F_SETFL = 4
 local O_NONBLOCK = 0x0004 -- OSにより異なる場合があるが一般的数値
--- local O_NONBLOCK = 4
 
 -- 標準入力(fd=0)をノンブロッキングに設定
 ffi.C.fcntl(0, F_SETFL, O_NONBLOCK)

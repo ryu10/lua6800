@@ -34,13 +34,6 @@ rm -f "$VTTY"
 echo "Creating PTY at $VTTY..."
 
 # socatでPTYとLuaプログラムを接続
-# 修正ポイント: 
-# 1. EXEC ではなく PTY を二つ作るか、EXEC に pty,raw を指定する
-# 2. 内部の Lua プログラム側にも「端末としての属性」を強制する
-# socat PTY,link="$VTTY",raw,echo=0 \
-#       EXEC:"luajit acia_emu.lua",pty,raw,echo=0,stderr &
-# socat PTY,link="$VTTY",raw,echo=0 \
-#             EXEC:"luajit acia_emu.lua",pty,raw,echo=0 &
 # 入出力ともに一切の加工を禁止する設定
 socat PTY,link="$VTTY",raw,echo=0,isig=0,icanon=0 \
       EXEC:"luajit acia_emu.lua",pty,raw,echo=0,isig=0,icanon=0 &
