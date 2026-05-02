@@ -39,9 +39,7 @@ echo "Creating PTY at $VTTY..."
 # 2. 内部の Lua プログラム側にも「端末としての属性」を強制する
 # socat PTY,link="$VTTY",raw,echo=0 \
 #       EXEC:"luajit acia_emu.lua",pty,raw,echo=0,stderr &
-# setsid を使って新しいプロセスセッションを作成し、
-# socat をそのリーダーにすることで一括管理しやすくする
-setsid socat PTY,link="$VTTY",raw,echo=0 \
+socat PTY,link="$VTTY",raw,echo=0 \
             EXEC:"luajit acia_emu.lua",pty,raw,echo=0 &
 
 SOCAT_PID=$!
