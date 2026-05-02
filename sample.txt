@@ -1,0 +1,43 @@
+Luaでの最小実行コード (main.lua)
+
+moon6800 は require で読み込めます。ACIA（シリアル通信）を簡易的に模した最小の構成例です。lua-- パスを通す（サブモジュール内のファイルを読み込めるようにする）
+package.path = package.path .. ";./moon6800/?.lua"
+
+local CPU = require("cpu")
+local cpu = CPU:new()
+
+-- 64KBのメモリを確保
+local memory = {}
+for i = 0, 0xFFFF do memory[i] = 0x00 end
+
+-- ROMの読み込み (例: 0xF000から配置)
+local f = io.open("bios.bin", "rb")
+if f then
+    local data = f:read("*all")
+    for i = 1, #data do
+        memory[0xF000 + i - 1] = data:byte(i)
+    end
+    f:close()
+end
+
+-- CPUのメモリ読み書き関数を上書き（ここでSBCの構成を決める）
+cpu.read = function(self, addr)
+    -- ACIA (6850) のステータスレジスタを模倣 (常に送信準備OKとする)
+    if addr == 0x8004 then return 0x02 end
+    return memory[addr]
+end
+
+cpu.write = function(self, addr, val)
+    -- ACIA (6850) のデータレジスタへの書き出しを標準出力へ
+    if addr == 0x8005 then
+        io.write(string.char(val))
+    else
+        memory[addr] = val
+    end
+end
+
+-- リセットベクトルをセットして実行
+cpu:reset()
+while true do
+    cpu:step()
+end
