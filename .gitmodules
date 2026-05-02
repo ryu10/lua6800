@@ -1,3 +1,4 @@
 [submodule "moon6800"]
 	path = moon6800
 	url = https://github.com/ryu10/moon6800.git
+	branch = lua6800-develop
