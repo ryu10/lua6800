@@ -1,13 +1,13 @@
-0001                         * HELLO.S for MIKBUG on CHICK-BUG
+0001                         * HELLO.S for MIKBUG-acia
 0002                         *
-0003                         * NOTE: VAR = $8800, START = $81D0
-0004                         *       RTI PCH = $8848, PCL = $8849
+0003                         * NOTE: VAR = $1F00, START = $E0D0
+0004                         *       RTI PCH = $1F48, PCL = $1F49
 0005                         *
-0006 817e                    pdata1  equ   $817E 
+0006 e07e                    pdata1  equ   $E07E 
 0007                         *
 0008 1000                       org    $1000
 0009 1000 ce 10 07              ldx    #htext
-0010 1003 bd 81 7e              jsr    pdata1
+0010 1003 bd e0 7e              jsr    pdata1
 0011 1006 3f                    swi
 0012                            end
 0013                         *
@@ -16,6 +16,6 @@
 0015 1012 04                   fcb 4
 0016                         *
 htext      1007
-pdata1     817e
+pdata1     e07e
 htext      1007 *0014 0009 
-pdata1     817e *0006 0010 
+pdata1     e07e *0006 0010 
