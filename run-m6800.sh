@@ -88,7 +88,7 @@ cd "$ROOT_DIR"
 
 echo "Creating PTY at $VTTY..."
 
-socat PTY,link="$VTTY",raw,echo=0,isig=0,icanon=0 \
+socat PTY,link="$VTTY",wait-slave,raw,echo=0,isig=0,icanon=0 \
   EXEC:"$LUA_BIN main.lua",pty,raw,echo=0,isig=0,icanon=0 &
 
 SOCAT_PID=$!
