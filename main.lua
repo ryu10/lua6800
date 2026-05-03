@@ -1,12 +1,45 @@
 package.path = package.path .. ";./moon6800/?.lua"
 
 local CPU = require("cpu")
-local ACIA = require("acia")
+local io_pty = require("io_pty")
 
 io.stdout:setvbuf("no")
 
 local cpu = CPU
-local acia = ACIA.new()
+
+local adapter, pty_err = io_pty.new()
+if not adapter then
+    io.stderr:write("PTY 初期化失敗: " .. tostring(pty_err) .. "\n")
+    os.exit(1)
+end
+io.stderr:write("PTY slave: " .. tostring(adapter.pty_path) .. "\n")
+
+local rx_data = 0x00
+local rx_ready = false
+
+local function acia_poll_input()
+    if rx_ready then return end
+    local b = adapter.try_read_byte()
+    if b then
+        rx_data = b
+        rx_ready = true
+    end
+end
+
+local function acia_status()
+    return 0x02 + (rx_ready and 0x01 or 0)
+end
+
+local function acia_read_data()
+    rx_ready = false
+    return rx_data
+end
+
+local function acia_write_data(value)
+    adapter.write_byte(value)
+end
+
+local function acia_write_control(_value) end
 
 local acia_trace_path = os.getenv("M6800_ACIA_TRACE_FILE")
 local acia_trace = nil
@@ -75,11 +108,11 @@ local ACIA_DATA = 0x8019
 local memory = setmetatable({}, {
     __index = function(_, addr)
         if addr == ACIA_STATUS then
-            local v = acia:status()
+            local v = acia_status()
             trace_acia("RD", addr, v)
             return v
         elseif addr == ACIA_DATA then
-            local v = acia:read_data()
+            local v = acia_read_data()
             trace_acia("RD", addr, v)
             return v
         end
@@ -89,10 +122,10 @@ local memory = setmetatable({}, {
         value = value % 0x100
         if addr == ACIA_DATA then
             trace_acia("WR", addr, value)
-            acia:write_data(value)
+            acia_write_data(value)
         elseif addr == ACIA_STATUS then
             trace_acia("WR", addr, value)
-            acia:write_control(value)
+            acia_write_control(value)
         else
             raw_memory[addr] = value
         end
@@ -118,13 +151,13 @@ cpu:go()
 
 local ok, err = xpcall(function()
     while true do
-        acia:poll_input()
+        acia_poll_input()
         trace_cpu_step()
         cpu:cycle()
     end
 end, debug.traceback)
 
-acia:close()
+adapter.close()
 if acia_trace then
     acia_trace:close()
 end
