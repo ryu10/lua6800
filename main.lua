@@ -54,31 +54,17 @@ local function trace_key_event(raw_byte, normalized_byte, note)
     key_trace:flush()
 end
 
-local rx_queue = {}
-local rx_head = 1
-local rx_tail = 0
-local last_enqueued_was_cr = false
+local rx_byte = 0x00
+local rx_ready = false
+local rx_overrun = false
+local last_rx_was_cr = false
 
-local function rx_count()
-    return rx_tail - rx_head + 1
-end
-
-local function rx_push(byte)
-    rx_tail = rx_tail + 1
-    rx_queue[rx_tail] = byte
-end
-
-local function rx_pop()
-    if rx_head > rx_tail then
+local function rx_take()
+    if not rx_ready then
         return nil
     end
-    local v = rx_queue[rx_head]
-    rx_queue[rx_head] = nil
-    rx_head = rx_head + 1
-    if rx_head > rx_tail then
-        rx_head = 1
-        rx_tail = 0
-    end
+    local v = rx_byte
+    rx_ready = false
     return v
 end
 
@@ -92,7 +78,7 @@ local function poll_input()
             -- Normalize terminal line-endings and ignore PTY noise.
             if b == 0x00 then
                 trace_key_event(raw, nil, "drop-nul")
-            elseif b == 0x0A and last_enqueued_was_cr then
+            elseif b == 0x0A and last_rx_was_cr then
                 -- Collapse CRLF into a single CR event.
                 trace_key_event(raw, nil, "drop-lf-after-cr")
             else
@@ -102,8 +88,15 @@ local function poll_input()
                 else
                     trace_key_event(raw, b, "accept")
                 end
-                rx_push(b)
-                last_enqueued_was_cr = (b == 0x0D)
+                if rx_ready then
+                    -- ACIA RX register is single-byte; drop extra bytes until host reads DATA.
+                    rx_overrun = true
+                    trace_key_event(raw, nil, "drop-overrun")
+                else
+                    rx_byte = b
+                    rx_ready = true
+                    last_rx_was_cr = (b == 0x0D)
+                end
             end
         elseif n < 0 then
             local err = ffi.errno()
@@ -126,12 +119,15 @@ local memory = setmetatable({}, {
     __index = function(_, addr)
         if addr == ACIA_STATUS then
             local status = 0x02
-            if rx_count() > 0 then
+            if rx_ready then
                 status = bit.bor(status, 0x01)
+            end
+            if rx_overrun then
+                status = bit.bor(status, 0x20)
             end
             return status
         elseif addr == ACIA_DATA then
-            return rx_pop() or 0x00
+            return rx_take() or 0x00
         end
         return raw_memory[addr] or 0x00
     end,
@@ -141,6 +137,8 @@ local memory = setmetatable({}, {
             write_byte(value)
         elseif addr == ACIA_STATUS then
             -- Accept ACIA control writes and ignore for now.
+            -- Clear overrun on any control write to reduce sticky fault behavior.
+            rx_overrun = false
         else
             raw_memory[addr] = value
         end
