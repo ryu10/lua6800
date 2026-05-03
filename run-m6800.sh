@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LUA_BIN="${LUA_BIN:-${LUAJIT_BIN:-luajit}}"
+LUA_ARGS="${LUA_ARGS:-}"
 VTTY="$ROOT_DIR/vtty"
 SOCAT_PID=""
 LUA_PID=""
@@ -89,7 +90,7 @@ cd "$ROOT_DIR"
 echo "Creating PTY at $VTTY..."
 
 socat PTY,link="$VTTY",wait-slave,raw,echo=0,isig=0,icanon=0 \
-  EXEC:"$LUA_BIN main.lua",pty,raw,echo=0,isig=0,icanon=0 &
+  EXEC:"$LUA_BIN $LUA_ARGS main.lua",pty,raw,echo=0,isig=0,icanon=0 &
 
 SOCAT_PID=$!
 LUA_PID="$(pgrep -P "$SOCAT_PID" 2>/dev/null | head -n 1 || true)"

@@ -23,7 +23,7 @@ local function open_key_trace_from_env()
     if not trace_path or trace_path == "" then
         return nil
     end
-    return io.open(trace_path, "ab")
+    return io.open(trace_path, "wb")
 end
 
 function ACIA.new(opts)
