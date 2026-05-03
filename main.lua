@@ -36,29 +36,83 @@ local EAGAIN = 11
 local EWOULDBLOCK = (jit and jit.os == "OSX") and 35 or 11
 local EINTR = 4
 
-local rx_byte = 0x00
-local rx_ready = false
+local key_trace_path = os.getenv("M6800_KEY_TRACE_FILE")
+local key_trace = nil
+local key_trace_seq = 0
+if key_trace_path and key_trace_path ~= "" then
+    key_trace = io.open(key_trace_path, "ab")
+end
 
-local function poll_input()
-    if rx_ready then
+local function trace_key_event(raw_byte, normalized_byte, note)
+    if not key_trace then
         return
     end
+    key_trace_seq = key_trace_seq + 1
+    local raw_s = raw_byte and string.format("%02X", raw_byte) or "--"
+    local norm_s = normalized_byte and string.format("%02X", normalized_byte) or "--"
+    key_trace:write(string.format("%08d raw=%s norm=%s %s\n", key_trace_seq, raw_s, norm_s, note or ""))
+    key_trace:flush()
+end
 
-    local n = ffi.C.read(0, input_buf, 1)
-    if n > 0 then
-        local b = bit.band(input_buf[0], 0xFF)
-        -- Normalize terminal line-endings and ignore NUL noise from PTY paths.
-        if b == 0x00 then
+local rx_queue = {}
+local rx_head = 1
+local rx_tail = 0
+local last_enqueued_was_cr = false
+
+local function rx_count()
+    return rx_tail - rx_head + 1
+end
+
+local function rx_push(byte)
+    rx_tail = rx_tail + 1
+    rx_queue[rx_tail] = byte
+end
+
+local function rx_pop()
+    if rx_head > rx_tail then
+        return nil
+    end
+    local v = rx_queue[rx_head]
+    rx_queue[rx_head] = nil
+    rx_head = rx_head + 1
+    if rx_head > rx_tail then
+        rx_head = 1
+        rx_tail = 0
+    end
+    return v
+end
+
+local function poll_input()
+    while true do
+        local n = ffi.C.read(0, input_buf, 1)
+        if n > 0 then
+            local raw = bit.band(input_buf[0], 0xFF)
+            local b = raw
+
+            -- Normalize terminal line-endings and ignore PTY noise.
+            if b == 0x00 then
+                trace_key_event(raw, nil, "drop-nul")
+            elseif b == 0x0A and last_enqueued_was_cr then
+                -- Collapse CRLF into a single CR event.
+                trace_key_event(raw, nil, "drop-lf-after-cr")
+            else
+                if b == 0x0A then
+                    b = 0x0D
+                    trace_key_event(raw, b, "lf-to-cr")
+                else
+                    trace_key_event(raw, b, "accept")
+                end
+                rx_push(b)
+                last_enqueued_was_cr = (b == 0x0D)
+            end
+        elseif n < 0 then
+            local err = ffi.errno()
+            if err ~= EAGAIN and err ~= EWOULDBLOCK and err ~= EINTR then
+                io.stderr:write(string.format("read(stdin) failed: errno=%d\n", err))
+            end
             return
-        elseif b == 0x0A then
-            b = 0x0D
-        end
-        rx_byte = b
-        rx_ready = true
-    elseif n < 0 then
-        local err = ffi.errno()
-        if err ~= EAGAIN and err ~= EWOULDBLOCK and err ~= EINTR then
-            io.stderr:write(string.format("read(stdin) failed: errno=%d\n", err))
+        else
+            return
         end
     end
 end
@@ -72,14 +126,12 @@ local memory = setmetatable({}, {
     __index = function(_, addr)
         if addr == ACIA_STATUS then
             local status = 0x02
-            if rx_ready then
+            if rx_count() > 0 then
                 status = bit.bor(status, 0x01)
             end
             return status
         elseif addr == ACIA_DATA then
-            local value = rx_byte
-            rx_ready = false
-            return value
+            return rx_pop() or 0x00
         end
         return raw_memory[addr] or 0x00
     end,
@@ -121,5 +173,8 @@ end, debug.traceback)
 
 if not ok then
     io.stderr:write(err .. "\n")
+    if key_trace then
+        key_trace:close()
+    end
     os.exit(1)
 end
