@@ -15,6 +15,8 @@ if acia_trace_path and acia_trace_path ~= "" then
     acia_trace = io.open(acia_trace_path, "wb")
 end
 
+local raw_memory
+
 local cpu_trace_path = os.getenv("M6800_CPU_TRACE_FILE")
 local cpu_trace = nil
 local cpu_trace_seq = 0
@@ -62,7 +64,7 @@ local function trace_acia(op, addr, value)
     acia_trace:flush()
 end
 
-local raw_memory = {}
+raw_memory = {}
 for i = 0, 0xFFFF do
     raw_memory[i] = 0x00
 end
