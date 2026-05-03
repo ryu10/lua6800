@@ -46,7 +46,14 @@ local function poll_input()
 
     local n = ffi.C.read(0, input_buf, 1)
     if n > 0 then
-        rx_byte = bit.band(input_buf[0], 0xFF)
+        local b = bit.band(input_buf[0], 0xFF)
+        -- Normalize terminal line-endings and ignore NUL noise from PTY paths.
+        if b == 0x00 then
+            return
+        elseif b == 0x0A then
+            b = 0x0D
+        end
+        rx_byte = b
         rx_ready = true
     elseif n < 0 then
         local err = ffi.errno()
