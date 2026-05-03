@@ -66,43 +66,42 @@ function ACIA:trace_key_event(raw_byte, normalized_byte, note)
 end
 
 function ACIA:poll_input()
-    while true do
-        local n = ffi.C.read(self.stdin_fd, self.input_buf, 1)
-        if n > 0 then
-            local raw = bit.band(self.input_buf[0], 0xFF)
-            local b = raw
+    if self.rx_ready then
+        return
+    end
 
-            if b == 0x00 then
-                self:trace_key_event(raw, nil, "drop-nul")
-            elseif b == 0x0A and self.last_rx_was_cr then
-                self:trace_key_event(raw, nil, "drop-lf-after-cr")
-            else
-                if b == 0x0A then
-                    b = 0x0D
-                    self:trace_key_event(raw, b, "lf-to-cr")
-                else
-                    self:trace_key_event(raw, b, "accept")
-                end
+    local n = ffi.C.read(self.stdin_fd, self.input_buf, 1)
+    if n > 0 then
+        local raw = bit.band(self.input_buf[0], 0xFF)
+        local b = raw
 
-                if self.rx_ready then
-                    self.rx_overrun = true
-                    self:trace_key_event(raw, nil, "drop-overrun")
-                else
-                    self.rx_byte = b
-                    self.rx_data_reg = b
-                    self.rx_ready = true
-                    self.last_rx_was_cr = (b == 0x0D)
-                end
-            end
-        elseif n < 0 then
-            local err = ffi.errno()
-            if err ~= EAGAIN and err ~= EWOULDBLOCK and err ~= EINTR then
-                io.stderr:write(string.format("read(stdin) failed: errno=%d\n", err))
-            end
-            return
-        else
+        if b == 0x00 then
+            self:trace_key_event(raw, nil, "drop-nul")
             return
         end
+
+        if b == 0x0A and self.last_rx_was_cr then
+            self:trace_key_event(raw, nil, "drop-lf-after-cr")
+            return
+        end
+
+        if b == 0x0A then
+            b = 0x0D
+            self:trace_key_event(raw, b, "lf-to-cr")
+        else
+            self:trace_key_event(raw, b, "accept")
+        end
+
+        self.rx_byte = b
+        self.rx_data_reg = b
+        self.rx_ready = true
+        self.last_rx_was_cr = (b == 0x0D)
+    elseif n < 0 then
+        local err = ffi.errno()
+        if err ~= EAGAIN and err ~= EWOULDBLOCK and err ~= EINTR then
+            io.stderr:write(string.format("read(stdin) failed: errno=%d\n", err))
+        end
+        return
     end
 end
 
