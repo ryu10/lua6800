@@ -10,11 +10,17 @@ ffi.cdef[[
     int write(int fd, const void *buf, size_t count);
 ]]
 
+local F_GETFL = 3
 local F_SETFL = 4
-local O_NONBLOCK = 0x0004
+local O_NONBLOCK = (jit and (jit.os == "OSX" or jit.os == "BSD")) and 0x0004 or 0x0800
 
 io.stdout:setvbuf("no")
-ffi.C.fcntl(0, F_SETFL, O_NONBLOCK)
+local flags = ffi.C.fcntl(0, F_GETFL, 0)
+if flags >= 0 then
+    ffi.C.fcntl(0, F_SETFL, bit.bor(flags, O_NONBLOCK))
+else
+    ffi.C.fcntl(0, F_SETFL, O_NONBLOCK)
+end
 
 local cpu = CPU
 local input_buf = ffi.new("char[1]")
@@ -26,6 +32,9 @@ end
 
 local ACIA_STATUS = 0x8018
 local ACIA_DATA = 0x8019
+local EAGAIN = 11
+local EWOULDBLOCK = (jit and jit.os == "OSX") and 35 or 11
+local EINTR = 4
 
 local rx_byte = 0x00
 local rx_ready = false
@@ -37,8 +46,13 @@ local function poll_input()
 
     local n = ffi.C.read(0, input_buf, 1)
     if n > 0 then
-        rx_byte = input_buf[0]
+        rx_byte = bit.band(input_buf[0], 0xFF)
         rx_ready = true
+    elseif n < 0 then
+        local err = ffi.errno()
+        if err ~= EAGAIN and err ~= EWOULDBLOCK and err ~= EINTR then
+            io.stderr:write(string.format("read(stdin) failed: errno=%d\n", err))
+        end
     end
 end
 

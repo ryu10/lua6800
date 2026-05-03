@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LUAJIT_BIN="${LUAJIT_BIN:-luajit}"
+LUA_BIN="${LUA_BIN:-${LUAJIT_BIN:-luajit}}"
 VTTY="$ROOT_DIR/vtty"
 SOCAT_PID=""
 
@@ -20,8 +20,14 @@ if ! command -v screen >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v "$LUAJIT_BIN" >/dev/null 2>&1; then
-  echo "Error: $LUAJIT_BIN not found (set LUAJIT_BIN to override)."
+if ! command -v "$LUA_BIN" >/dev/null 2>&1; then
+  echo "Error: $LUA_BIN not found (set LUA_BIN or LUAJIT_BIN to override)."
+  exit 1
+fi
+
+if [ ! -f "$ROOT_DIR/moon6800/cpu.lua" ]; then
+  echo "Error: moon6800 submodule is missing."
+  echo "Run: git submodule update --init --recursive"
   exit 1
 fi
 
@@ -42,7 +48,7 @@ cd "$ROOT_DIR"
 echo "Creating PTY at $VTTY..."
 
 socat PTY,link="$VTTY",raw,echo=0,isig=0,icanon=0 \
-  EXEC:"$LUAJIT_BIN main.lua",pty,raw,echo=0,isig=0,icanon=0 &
+  EXEC:"$LUA_BIN main.lua",pty,raw,echo=0,isig=0,icanon=0 &
 
 SOCAT_PID=$!
 
