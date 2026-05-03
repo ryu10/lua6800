@@ -34,6 +34,7 @@ function ACIA.new(opts)
     self.stdout_fd = opts.stdout_fd or 1
 
     self.rx_byte = 0x00
+    self.rx_data_reg = 0x00
     self.rx_ready = false
     self.rx_overrun = false
     self.last_rx_was_cr = false
@@ -88,6 +89,7 @@ function ACIA:poll_input()
                     self:trace_key_event(raw, nil, "drop-overrun")
                 else
                     self.rx_byte = b
+                    self.rx_data_reg = b
                     self.rx_ready = true
                     self.last_rx_was_cr = (b == 0x0D)
                 end
@@ -116,13 +118,11 @@ function ACIA:status()
 end
 
 function ACIA:read_data()
-    if not self.rx_ready then
-        return 0x00
+    if self.rx_ready then
+        self.rx_data_reg = self.rx_byte
+        self.rx_ready = false
     end
-
-    local v = self.rx_byte
-    self.rx_ready = false
-    return v
+    return self.rx_data_reg
 end
 
 function ACIA:write_data(value)
