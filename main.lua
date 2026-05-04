@@ -1,7 +1,10 @@
 package.path = package.path .. ";./moon6800/?.lua"
 
-local CPU = require("cpu")
-local ACIA = require("acia")
+local CPU          = require("cpu")
+local ACIA         = require("acia")
+local ram_factory  = require("ram")
+local eprom_factory = require("eprom")
+local bus          = require("memory")
 
 io.stdout:setvbuf("no")
 
@@ -14,8 +17,6 @@ local acia_trace_seq = 0
 if acia_trace_path and acia_trace_path ~= "" then
     acia_trace = io.open(acia_trace_path, "wb")
 end
-
-local raw_memory
 
 local cpu_trace_path = os.getenv("M6800_CPU_TRACE_FILE")
 local cpu_trace = nil
@@ -34,7 +35,7 @@ local function trace_cpu_step()
     end
 
     local pc = cpu.registers and cpu.registers.pc and cpu.registers.pc() or 0
-    local op = raw_memory[pc] or 0
+    local op = bus[pc] or 0
     local a = cpu.registers and cpu.registers.a and cpu.registers.a() or 0
     local b = cpu.registers and cpu.registers.b and cpu.registers.b() or 0
     local ix = cpu.registers and cpu.registers.ix and cpu.registers.ix() or 0
@@ -64,56 +65,60 @@ local function trace_acia(op, addr, value)
     acia_trace:flush()
 end
 
-raw_memory = {}
-for i = 0, 0xFFFF do
-    raw_memory[i] = 0x00
-end
-
 local ACIA_STATUS = 0x8018
-local ACIA_DATA = 0x8019
+local ACIA_DATA   = 0x8019
 
-local memory = setmetatable({}, {
-    __index = function(_, addr)
-        if addr == ACIA_STATUS then
+-- RAM: 0x0000-0x7FFF (32KB)
+local ram = ram_factory(0x8000, 0x00)
+
+-- ACIA I/O module: 2 bytes at ACIA_STATUS
+local acia_module = { size = 2 }
+setmetatable(acia_module, {
+    __index = function(_, offset)
+        if offset == 0 then
             local v = acia:status()
-            trace_acia("RD", addr, v)
+            trace_acia("RD", ACIA_STATUS, v)
             return v
-        elseif addr == ACIA_DATA then
+        elseif offset == 1 then
             local v = acia:read_data()
-            trace_acia("RD", addr, v)
+            trace_acia("RD", ACIA_DATA, v)
             return v
         end
-        return raw_memory[addr] or 0x00
+        return 0
     end,
-    __newindex = function(_, addr, value)
+    __newindex = function(_, offset, value)
         value = value % 0x100
-        if addr == ACIA_DATA then
-            trace_acia("WR", addr, value)
-            acia:write_data(value)
-        elseif addr == ACIA_STATUS then
-            trace_acia("WR", addr, value)
+        if offset == 0 then
+            trace_acia("WR", ACIA_STATUS, value)
             acia:write_control(value)
-        else
-            raw_memory[addr] = value
+        elseif offset == 1 then
+            trace_acia("WR", ACIA_DATA, value)
+            acia:write_data(value)
         end
     end
 })
 
-local rom_path = (arg and arg[1]) or os.getenv("M6800_ROM") or "mikbug/mikbug.bin"
+-- EPROM: 0xE000-0xFFFF (8KB, covers ROM + vectors)
+local ROM_START = 0xE000
+local ROM_SIZE  = 0x2000
+local rom_data  = { size = ROM_SIZE }
+local rom_path  = (arg and arg[1]) or os.getenv("M6800_ROM") or "mikbug/mikbug.bin"
 local f = io.open(rom_path, "rb")
 if f then
-    local data = f:read("*all")
+    local image = f:read("*all")
     f:close()
-    for i = 1, #data do
-        local addr = i - 1
-        if addr > 0xFFFF then
-            break
-        end
-        memory[addr] = data:byte(i)
+    for i = 0, ROM_SIZE - 1 do
+        rom_data[i] = image:byte(ROM_START + i + 1) or 0xFF
     end
 end
+local eprom = eprom_factory(rom_data)
 
-cpu:init(memory)
+bus:connect(0x0000,     ram)
+bus:connect(ACIA_STATUS, acia_module)
+bus:connect(ROM_START,  eprom)
+bus.cpu = cpu
+
+cpu:init(bus)
 cpu:go()
 
 local ok, err = xpcall(function()
