@@ -28,4 +28,5 @@ local ACIA_DATA = 0x8019
 ## 制限事項
 
 - macos 動作確認済み
-- linux (ubuntu) では ACIA 改行変換未対応のため mikbug のようなソフトは動きません
+- linux 動作確認済み
+- moon6800 由来の既知の TODO が残っている: サイクル数が未確定の命令、JSR 系で PC インクリメントのタイミングが怪しい箇所、HCF 命令のバリアント、PIA の IRQ 選択・周辺ピン動作、CPU 初期化時の I フラグなど。詳細は `moon6800/opcodes.lua`・`instructions.lua`・`pia.lua`・`cpu.lua` 内の `TODO` コメントを参照してください。
