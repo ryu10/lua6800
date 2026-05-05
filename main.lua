@@ -71,6 +71,10 @@ local ACIA_DATA   = 0x8019
 -- RAM: 0x0000-0x7FFF (32KB)
 local ram = ram_factory(0x8000, 0x00)
 
+-- RAM2: 0x9000-0xF3FF (25KB))
+local ram2 = ram_factory(0x6400, 0x00)
+
+
 -- ACIA I/O module: 2 bytes at ACIA_STATUS
 local acia_module = { size = 2 }
 setmetatable(acia_module, {
@@ -99,8 +103,8 @@ setmetatable(acia_module, {
 })
 
 -- EPROM: 0xE000-0xFFFF (8KB, covers ROM + vectors)
-local ROM_START = 0xE000
-local ROM_SIZE  = 0x2000
+local ROM_START = 0xF800
+local ROM_SIZE  = 0x0800
 local rom_data  = { size = ROM_SIZE }
 local rom_path  = (arg and arg[1]) or os.getenv("M6800_ROM") or "mikbug/mikbug.bin"
 local f = io.open(rom_path, "rb")
@@ -114,6 +118,7 @@ end
 local eprom = eprom_factory(rom_data)
 
 bus:connect(0x0000,     ram)
+bus:connect(0x9000,     ram2)
 bus:connect(ACIA_STATUS, acia_module)
 bus:connect(ROM_START,  eprom)
 bus.cpu = cpu

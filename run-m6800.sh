@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LUA_BIN="${LUA_BIN:-${LUAJIT_BIN:-luajit}}"
 LUA_ARGS="${LUA_ARGS:-}"
+M6800_ROM="${M6800_ROM:-${1:-}}"
+export M6800_ROM
 VTTY="$ROOT_DIR/vtty"
 SOCAT_PID=""
 LUA_PID=""
