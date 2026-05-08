@@ -1,18 +1,18 @@
 0001                         * HELLO.S for EDMON02
 0002                         **
-0003 fa13                    pdata1  equ   $fa13 
+0003 fa14                    pdata1  equ   $fa14
 0004                         *
 0005 0000                       org    $0000
 0006 0000 ce 00 07              ldx    #htext
-0007 0003 bd fa 13              jsr    pdata1
+0007 0003 bd fa 14              jsr    pdata1
 0008 0006 3f                    swi
 0009                            end
 0010                         *
 0011 0007 48 45 4c 4c 4f 20  htext   fcc "HELLO WORLD"
      57 4f 52 4c 44
-0012 0012 04                   fcb 4
+0012 0012 0d 0a 04             fcb $0d, $0a, $04
 0013                         *
 htext      0007
-pdata1     fa13
+pdata1     fa14
 htext      0007 *0011 0006 
-pdata1     fa13 *0003 0007 
+pdata1     fa14 *0003 0007 

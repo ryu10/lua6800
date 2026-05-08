@@ -1,6 +1,6 @@
 * HELLO.S for EDMON02
 **
-pdata1  equ   $fa13 
+pdata1  equ   $fa14
 *
    org    $0000
    ldx    #htext
@@ -9,5 +9,5 @@ pdata1  equ   $fa13
    end
 *
 htext   fcc "HELLO WORLD"
-  fcb 4
+  fcb $0d, $0a, $04
 *
