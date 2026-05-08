@@ -67,6 +67,12 @@ end
 
 local ACIA_STATUS = 0x8018
 local ACIA_DATA   = 0x8019
+local TIMER_START_ADDR = 0x8000
+local TIMER_RESET_ADDR = 0x8001
+
+local total_cycles = 0
+local trace_timer_active = false
+local trace_target_cycle = 0
 
 -- RAM: 0x0000-0x7FFF (32KB)
 local ram = ram_factory(0x8000, 0x00)
@@ -102,6 +108,23 @@ setmetatable(acia_module, {
     end
 })
 
+-- Interrupt mock timer module (start/reset trap addresses)
+local interrupt_module = { size = 2 }
+setmetatable(interrupt_module, {
+    __index = function()
+        return 0
+    end,
+    __newindex = function(_, offset, _)
+        if offset == 0 then
+            trace_timer_active = true
+            trace_target_cycle = total_cycles + 12 -- RTI(10) + safety margin
+        elseif offset == 1 then
+            cpu.nmi = false
+            trace_timer_active = false
+        end
+    end
+})
+
 -- EPROM: 0xE000-0xFFFF (8KB, covers ROM + vectors)
 local ROM_START = 0xF800
 local ROM_SIZE  = 0x0800
@@ -119,6 +142,7 @@ local eprom = eprom_factory(rom_data)
 
 bus:connect(0x0000,     ram)
 bus:connect(0x9000,     ram2)
+bus:connect(TIMER_START_ADDR, interrupt_module)
 bus:connect(ACIA_STATUS, acia_module)
 bus:connect(ROM_START,  eprom)
 bus.cpu = cpu
@@ -130,7 +154,12 @@ local ok, err = xpcall(function()
     while true do
         acia:poll_input()
         trace_cpu_step()
-        cpu:cycle()
+        local cycles_taken = cpu:cycle()
+        total_cycles = total_cycles + cycles_taken
+        if trace_timer_active and total_cycles >= trace_target_cycle then
+            cpu.nmi = true
+            trace_timer_active = false -- prevent duplicate fire
+        end
     end
 end, debug.traceback)
 
