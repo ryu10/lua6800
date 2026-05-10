@@ -117,7 +117,8 @@ setmetatable(interrupt_module, {
     __newindex = function(_, offset, _)
         if offset == 0 then
             trace_timer_active = true
-            trace_target_cycle = total_cycles + 12 -- RTI(10) + safety margin
+            trace_target_cycle = total_cycles + 5 + 12 -- Coarse timing for edmon02 pseudo-NMI trace: fire after RTI and the next instruction boundary.
+                                                       -- This is intentionally tuned to the expected trace path, not cycle-accurate hardware timing.
         elseif offset == 1 then
             cpu.nmi = false
             trace_timer_active = false
