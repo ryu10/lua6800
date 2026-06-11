@@ -1,10 +1,10 @@
 0001                         * HELLO.S for EDMON02
 0002                         **
-0003 fb4b                    pdata1  equ   $fb4b
+0003 fb68                    pdata1  equ   $fb68
 0004                         *
 0005 1000                       org    $1000
 0006 1000 ce 10 07              ldx    #htext
-0007 1003 bd fb 4b              jsr    pdata1
+0007 1003 bd fb 68              jsr    pdata1
 0008 1006 3f                    swi
 0009                            end
 0010                         *
@@ -13,6 +13,6 @@
 0012 1012 0d 0a 04             fcb $0d, $0a, $04
 0013                         *
 htext      1007
-pdata1     fb4b
+pdata1     fb68
 htext      1007 *0011 0006 
-pdata1     fb4b *0003 0007 
+pdata1     fb68 *0003 0007 

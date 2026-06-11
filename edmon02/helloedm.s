@@ -1,6 +1,6 @@
 * HELLO.S for EDMON02
 **
-pdata1  equ   $fb4b
+pdata1  equ   $fb68
 *
    org    $1000
    ldx    #htext
