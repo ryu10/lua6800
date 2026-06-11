@@ -1,6 +1,6 @@
 # SBC6800 Lua
 
-[SBC6800](http://www.amy.hi-ho.ne.jp/officetetsu/storage/sbc6800_techdata.pdf) のような ACIA + RAM 構成の MC6800 SBC をエミュレートします。
+[SBC6800](http://www.amy.hi-ho.ne.jp/officetetsu/storage/sbc6800_techdata.pdf) のような ACIA + ROM + RAM 構成の MC6800 SBC をエミュレートします。
 
 Lua ベースの mc6800 エミュレータ、[moon6800](https://github.com/tobiasvl/moon6800) が中核になっています。
 
@@ -28,7 +28,7 @@ MIKBUG を実行:
 
 ## 仕様
 
-moon6800 の CPU エミュレーションコードを一部補完したものを使用しています（`.gitmodule` 参照）。
+moon6800 の CPU エミュレーションコードを一部補完したものを使用しています（[.gitmodules](./.gitmodules) 参照）。
 
 I/O デバイスとして ACIA を実装しています。ACIA のレジスタは以下のアドレスにマップされています。
 
