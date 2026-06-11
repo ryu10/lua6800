@@ -126,7 +126,7 @@ setmetatable(interrupt_module, {
     end
 })
 
--- EPROM: 0xE000-0xFFFF (8KB, covers ROM + vectors)
+-- EPROM: 0xF800-0xFFFF (2KB, covers ROM + vectors)
 local ROM_START = 0xF800
 local ROM_SIZE  = 0x0800
 local rom_data  = { size = ROM_SIZE }
