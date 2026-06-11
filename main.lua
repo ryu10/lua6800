@@ -117,7 +117,8 @@ setmetatable(interrupt_module, {
     __newindex = function(_, offset, _)
         if offset == 0 then
             trace_timer_active = true
-            trace_target_cycle = total_cycles + 12 -- RTI(10) + safety margin
+            trace_target_cycle = total_cycles + 5 + 12 -- Coarse timing for edmon02 pseudo-NMI trace: fire after RTI and the next instruction boundary.
+                                                       -- This is intentionally tuned to the expected trace path, not cycle-accurate hardware timing.
         elseif offset == 1 then
             cpu.nmi = false
             trace_timer_active = false
@@ -125,7 +126,7 @@ setmetatable(interrupt_module, {
     end
 })
 
--- EPROM: 0xE000-0xFFFF (8KB, covers ROM + vectors)
+-- EPROM: 0xF800-0xFFFF (2KB, covers ROM + vectors)
 local ROM_START = 0xF800
 local ROM_SIZE  = 0x0800
 local rom_data  = { size = ROM_SIZE }

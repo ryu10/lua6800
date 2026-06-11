@@ -1,8 +1,8 @@
 * HELLO.S for EDMON02
 **
-pdata1  equ   $fa14
+pdata1  equ   $fb68
 *
-   org    $0000
+   org    $1000
    ldx    #htext
    jsr    pdata1
    swi
